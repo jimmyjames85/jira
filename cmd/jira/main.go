@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 
+	"github.com/jimmyjames85/jira"
+	"github.com/jimmyjames85/jira/endpoints"
 	"github.com/spf13/viper"
 )
 
@@ -17,13 +17,7 @@ func die(err error) {
 	}
 }
 
-type jiraConfig struct {
-	BasicAuth string
-	BaseURL   string
-	UserName  string
-}
-
-func loadSettings(cfgFile string) jiraConfig {
+func loadSettings(cfgFile string) *jira.Config {
 
 	fi, err := os.Stat(cfgFile)
 	die(err)
@@ -36,30 +30,19 @@ func loadSettings(cfgFile string) jiraConfig {
 	err = viper.ReadInConfig()
 	die(err)
 
-	ret := jiraConfig{
+	ret := jira.Config{
 		BasicAuth: viper.GetString("JIRA_BASIC_AUTH"),
 		BaseURL:   viper.GetString("JIRA_BASE_URL"),
 		UserName:  viper.GetString("JIRA_USERNAME"),
 	}
-	return ret
+	return &ret
 }
 
 func main() {
 	cfg := loadSettings(filepath.Join(os.Getenv("HOME"), ".jira"))
-	client := &http.Client{}
-	searchUrl := fmt.Sprintf("%s%s%s%s", cfg.BaseURL, "/rest/api/latest/search?jql=assignee=", cfg.UserName, " AND createdDate>-10d")
+	jql := fmt.Sprintf("assignee=%s AND createdDate>-10d", cfg.UserName)
 
-	req, err := http.NewRequest("GET", searchUrl, nil)
+	s, err := endpoints.Search(cfg, jql)
 	die(err)
-
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Basic %s", cfg.BasicAuth))
-
-	res, err := client.Do(req)
-	die(err)
-
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(res.Body)
-	fmt.Printf("%s\n", buf.String())
+	fmt.Printf("%s\n", s)
 }
